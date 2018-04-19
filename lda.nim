@@ -8,10 +8,10 @@ proc wordSet(docs: seq[seq[string]]): HashSet[string] =
     for word in doc:
       result.incl(word)
 
-proc makeVocab(docs: seq[seq[string]]): seq[string] =
+proc makeVocab*(docs: seq[seq[string]]): seq[string] =
   toSeq(wordSet(docs).items)
 
-proc makeDocs(docWords: seq[seq[string]], vocab: seq[string]): seq[seq[int]] =
+proc makeDocs*(docWords: seq[seq[string]], vocab: seq[string]): seq[seq[int]] =
   docWords.map((s: seq[string]) => s.mapIt(vocab.find(it)))
 
 template `+`[A](v: Vector[A], a: A): Vector[A] =
@@ -39,7 +39,7 @@ proc makeDiscrete(v: Vector[float]): Discrete[int] =
 type LDAResult = object
   wt, dt: Matrix[float]
 
-proc lda(docs: seq[seq[int]], vocabLen: int, K: int, iterations: int): LDAResult =
+proc lda*(docs: seq[seq[int]], vocabLen: int, K: int, iterations: int): LDAResult =
   var
     rng = wrap(initMersenneTwister(urandom(16)))
     # word-topic matrix
@@ -98,7 +98,7 @@ proc lda(docs: seq[seq[int]], vocabLen: int, K: int, iterations: int): LDAResult
 
   return LDAResult(wt: wt, dt: dt)
 
-proc sample(ldaResult: LDAResult, vocab: seq[string], doc = 0, count = 10): string =
+proc sample*(ldaResult: LDAResult, vocab: seq[string], doc = 0, count = 10): string =
   var
       rng = wrap(initMersenneTwister(urandom(16)))
       words = newSeq[string](count)
@@ -111,10 +111,10 @@ proc sample(ldaResult: LDAResult, vocab: seq[string], doc = 0, count = 10): stri
     words[i - 1] = vocab[w]
   return words.join(" ")
 
-proc bestTopic(ldaResult: LDAResult, doc: int): int =
+proc bestTopic*(ldaResult: LDAResult, doc: int): int =
   ldaResult.dt.row(doc).maxIndex.i
 
-proc bestWords(ldaResult: LDAResult, vocab: seq[string], topic: int, count = 5): seq[tuple[word: string, score: float]] =
+proc bestWords*(ldaResult: LDAResult, vocab: seq[string], topic: int, count = 5): seq[tuple[word: string, score: float]] =
   var row = ldaResult.wt.row(topic)
   result = newSeq[tuple[word: string, score: float]](count)
   for i in 0 ..< count:
