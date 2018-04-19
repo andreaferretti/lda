@@ -43,6 +43,6 @@ proc main() =
     echo "> ", docWords[d]
     echo "topic: ", ldaResult.bestTopic(d)
 
-  echo sample(ldaResult, vocab, doc = 6)
+  # echo sample(ldaResult, vocab, doc = 6)
 
 main()

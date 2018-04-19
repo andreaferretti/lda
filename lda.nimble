@@ -21,5 +21,5 @@ task pubmed, "run pubmed example":
   --path: "."
   --run
   --define: release
-  --gc: markAndSweep
+  --gc: none
   setCommand "c", "examples/pubmed.nim"
