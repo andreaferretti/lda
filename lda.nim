@@ -1,11 +1,18 @@
-import sets
+import sets, sequtils, sugar, strutils
+import random/urandom, random/mersenne
 import neo, alea
 
-proc makeVocab(docs: seq[seq[string]]): HashSet[string] =
+proc wordSet(docs: seq[seq[string]]): HashSet[string] =
   result.init()
   for doc in docs:
     for word in doc:
       result.incl(word)
+
+proc makeVocab(docs: seq[seq[string]]): seq[string] =
+  toSeq(wordSet(docs).items)
+
+proc makeDocs(docWords: seq[seq[string]], vocab: seq[string]): seq[seq[int]] =
+  docWords.map((s: seq[string]) => s.mapIt(vocab.find(it)))
 
 template `+`[A](v: Vector[A], a: A): Vector[A] =
   v + constantVector(v.len, a)
@@ -29,37 +36,19 @@ proc makeDiscrete(v: Vector[float]): Discrete[int] =
   for i in 0 ..< v.len:
     result.values[i] = (i, v[i] / sum)
 
-when isMainModule:
-  import strutils, sequtils, sugar
-  import random/urandom, random/mersenne
+type LDAResult = object
+  wt, dt: Matrix[float]
 
-  let
-    rawDocs = @[
-        "eat turkey on turkey day holiday",
-        "i like to eat cake on holiday",
-        "turkey trot race on thanksgiving holiday",
-        "snail race the turtle",
-        "time travel space race",
-        "movie on thanksgiving",
-        "movie at air and space museum is cool movie",
-        "aspiring movie star"
-      ]
-    docWords = rawDocs.mapIt(it.split(' '))
-    vocab = toSeq(makeVocab(docWords).items)
-    docs = docWords.map((s: seq[string]) => s.mapIt(vocab.find(it)))
-    K = 3
+proc lda(docs: seq[seq[int]], vocabLen: int, K: int, iterations: int): LDAResult =
   var
     rng = wrap(initMersenneTwister(urandom(16)))
     # word-topic matrix
-    wt = zeros(K, vocab.len)
+    wt = zeros(K, vocabLen)
     # topic assignment list
     ta = docs.mapIt(repeat(0, len(it)))
     # counts correspond to the number of words assigned to each topic
     # for each document
     dt = zeros(docs.len, K)
-  dump docWords
-  dump vocab
-  dump docs
 
   # Random initialization
   for d in 0 ..< docs.len:
@@ -79,16 +68,11 @@ when isMainModule:
         if x == t:
           dt[d, t] = dt[d, t] + 1
 
-  dump wt
-  dump ta
-  dump dt
-
   # Gibbs sampling
   let
     alpha = 1.0
     eta = 1.0
-    iterations = 10
-    L = vocab.len.float
+    L = vocabLen.float
 
   for _ in 1 .. iterations:
     for d in 0 ..< docs.len:
@@ -112,7 +96,28 @@ when isMainModule:
         wt[t1, wid] = wt[t1, wid] + 1
         ta[d][w] = t1
 
-  for t in 0 ..< K:
+  return LDAResult(wt: wt, dt: dt)
+
+when isMainModule:
+  let
+    rawDocs = @[
+        "eat turkey on turkey day holiday",
+        "i like to eat cake on holiday",
+        "turkey trot race on thanksgiving holiday",
+        "snail race the turtle",
+        "time travel space race",
+        "movie on thanksgiving",
+        "movie at air and space museum is cool movie",
+        "aspiring movie star"
+      ]
+    docWords = rawDocs.mapIt(it.split(' '))
+    vocab = makeVocab(docWords)
+    docs = makeDocs(docWords, vocab)
+    ldaResult = lda(docs, vocabLen = vocab.len, K = 3, iterations = 1000)
+    wt = ldaResult.wt
+    dt = ldaResult.dt
+
+  for t in 0 ..< 3:
     echo "TOPIC ", t
     for w in 0 ..< vocab.len:
       if wt[t, w] > 1.0:
@@ -123,6 +128,8 @@ when isMainModule:
     echo rawDocs[d]
     echo dt.row(d).maxIndex
 
+  var
+      rng = wrap(initMersenneTwister(urandom(16)))
   # generate something like document 6:
   let tDist = makeDiscrete(dt.row(6))
   for _ in 1 .. 10:
