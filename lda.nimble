@@ -16,3 +16,10 @@ task toy, "run toy example":
   --define: release
   --gc: markAndSweep
   setCommand "c", "examples/toy.nim"
+
+task pubmed, "run pubmed example":
+  --path: "."
+  --run
+  --define: release
+  --gc: markAndSweep
+  setCommand "c", "examples/pubmed.nim"

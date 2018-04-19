@@ -1,4 +1,5 @@
 import sets, sequtils, sugar, strutils
+import random
 import random/urandom, random/mersenne
 import neo, alea
 
@@ -14,21 +15,6 @@ proc makeVocab*(docs: seq[seq[string]]): seq[string] =
 proc makeDocs*(docWords: seq[seq[string]], vocab: seq[string]): seq[seq[int]] =
   docWords.map((s: seq[string]) => s.mapIt(vocab.find(it)))
 
-template `+`[A](v: Vector[A], a: A): Vector[A] =
-  v + constantVector(v.len, a)
-
-proc `|/|`[A: SomeFloat](a, b: Vector[A]): Vector[A] =
-  assert(a.len == b.len)
-  result = a.clone
-  for i in 0 ..< a.len:
-    result[i] = result[i] / b[i]
-
-proc rowSums[A: SomeFloat](m: Matrix[A]): Vector[A] =
-  result = zeros(m.M, A)
-  for i in 0 ..< m.M:
-    for j in 0 ..< m.N:
-      result[i] = result[i] + m[i, j]
-
 proc makeDiscrete(v: Vector[float]): Discrete[int] =
   new result.values
   result.values[] = newSeq[(int, float)](v.len)
@@ -36,12 +22,29 @@ proc makeDiscrete(v: Vector[float]): Discrete[int] =
   for i in 0 ..< v.len:
     result.values[i] = (i, v[i] / sum)
 
+proc normalize(s: var seq[float]) =
+  let sum = foldl(s, a + b)
+  for i in 0 ..< s.len:
+    s[i] /= sum
+
+proc sample(r: var Rand, probabilities: seq[float]): int =
+  let x = r.rand(max = 1.0)
+  var sum = 0.0
+  for i, p in probabilities:
+    sum += p
+    if sum >= x:
+      return i
+
+proc rowSum(m: Matrix[float], i: int): float =
+  result = 0
+  for j in 0 ..< m.N:
+    result += m[i, j]
+
 type LDAResult = object
   wt, dt: Matrix[float]
 
 proc lda*(docs: seq[seq[int]], vocabLen: int, K: int, iterations: int): LDAResult =
   var
-    rng = wrap(initMersenneTwister(urandom(16)))
     # word-topic matrix
     wt = zeros(K, vocabLen)
     # topic assignment list
@@ -49,12 +52,13 @@ proc lda*(docs: seq[seq[int]], vocabLen: int, K: int, iterations: int): LDAResul
     # counts correspond to the number of words assigned to each topic
     # for each document
     dt = zeros(docs.len, K)
+    rng = initRand(1234)
 
   # Random initialization
   for d in 0 ..< docs.len:
     # randomly assign topic to word w
     for w in 0 ..< docs[d].len:
-      ta[d][w] = rng.randomInt(K)
+      ta[d][w] = rng.rand(K - 1)
       # extract the topic index, word id and update the corresponding cell
       # in the word-topic count matrix
       let
@@ -74,6 +78,8 @@ proc lda*(docs: seq[seq[int]], vocabLen: int, K: int, iterations: int): LDAResul
     eta = 1.0
     L = vocabLen.float
 
+  var probabilities = newSeq[float](K)
+
   for _ in 1 .. iterations:
     for d in 0 ..< docs.len:
       for w in 0 ..< docs[d].len:
@@ -84,13 +90,11 @@ proc lda*(docs: seq[seq[int]], vocabLen: int, K: int, iterations: int): LDAResul
         # since we are going to recompute it
         dt[d, t0] = dt[d, t0] - 1
         wt[t0, wid] = wt[t0, wid] - 1
-        let
-          left = (wt.column(wid) + eta) |/| (rowSums(wt) + L * eta)
-          right = (dt.row(d) + alpha) / (dt.row(d).sum + K.float * alpha)
-          prod = left |*| right
-          dist = makeDiscrete(prod)
+        for j in 0 ..< K:
+          probabilities[j] = (wt[j, wid] + eta) / (wt.rowSum(j) + L * eta) * (dt[d, j] + alpha)
+        normalize(probabilities)
         # Sample topic from distribution
-        let t1 = rng.sample(dist)
+        let t1 = rng.sample(probabilities)
         # Update counts
         dt[d, t1] = dt[d, t1] + 1
         wt[t1, wid] = wt[t1, wid] + 1
