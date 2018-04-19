@@ -132,8 +132,8 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
 
   # Gibbs sampling
   let
-    alpha = 1.0
-    eta = 1.0
+    alpha = 50.0 / K.float32
+    eta = 0.1
     L = vocabLen.float32
 
   var probabilities = newSeq[float32](K)

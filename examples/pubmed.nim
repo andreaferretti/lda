@@ -43,7 +43,7 @@ proc cleanup(docs: seq[seq[string]]): seq[seq[string]] =
     frequent.excl(word)
     i += 1
     if i > 30: break
-  return docs.map((s: seq[string]) => s.filterIt(frequent.contains(it)))
+  return docs.map((s: seq[string]) => s.filterIt(frequent.contains(it))).filterIt(it.len >= 5)
 
 proc main() =
   let
