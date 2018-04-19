@@ -98,6 +98,30 @@ proc lda(docs: seq[seq[int]], vocabLen: int, K: int, iterations: int): LDAResult
 
   return LDAResult(wt: wt, dt: dt)
 
+proc sample(ldaResult: LDAResult, vocab: seq[string], doc = 0, count = 10): string =
+  var
+      rng = wrap(initMersenneTwister(urandom(16)))
+      words = newSeq[string](count)
+  let tDist = makeDiscrete(ldaResult.dt.row(doc))
+  for i in 1 .. count:
+    let
+      t = rng.sample(tDist)
+      wDist = makeDiscrete(ldaResult.wt.row(t))
+      w = rng.sample(wDist)
+    words[i - 1] = vocab[w]
+  return words.join(" ")
+
+proc bestTopic(ldaResult: LDAResult, doc: int): int =
+  ldaResult.dt.row(doc).maxIndex.i
+
+proc bestWords(ldaResult: LDAResult, vocab: seq[string], topic: int, count = 5): seq[tuple[word: string, score: float]] =
+  var row = ldaResult.wt.row(topic)
+  result = newSeq[tuple[word: string, score: float]](count)
+  for i in 0 ..< count:
+    let index = row.maxIndex
+    result[i] = (vocab[index.i], index.val)
+    row[index.i] = 0
+
 when isMainModule:
   let
     rawDocs = @[
@@ -114,26 +138,13 @@ when isMainModule:
     vocab = makeVocab(docWords)
     docs = makeDocs(docWords, vocab)
     ldaResult = lda(docs, vocabLen = vocab.len, K = 3, iterations = 1000)
-    wt = ldaResult.wt
-    dt = ldaResult.dt
 
   for t in 0 ..< 3:
     echo "TOPIC ", t
-    for w in 0 ..< vocab.len:
-      if wt[t, w] > 1.0:
-        echo vocab[w], " : ", wt[t, w]
-    echo "=========="
+    echo bestWords(ldaResult, vocab, t)
 
   for d in 0 ..< docs.len:
-    echo rawDocs[d]
-    echo dt.row(d).maxIndex
+    echo "> ", rawDocs[d]
+    echo "topic: ", ldaResult.bestTopic(d)
 
-  var
-      rng = wrap(initMersenneTwister(urandom(16)))
-  # generate something like document 6:
-  let tDist = makeDiscrete(dt.row(6))
-  for _ in 1 .. 10:
-    let t = rng.sample(tDist)
-    let wDist = makeDiscrete(wt.row(t))
-    let w = rng.sample(wDist)
-    echo vocab[w]
+  echo sample(ldaResult, vocab, doc = 6)
