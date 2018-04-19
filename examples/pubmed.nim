@@ -1,4 +1,4 @@
-import sequtils, strutils, parseUtils
+import sequtils, strutils, parseUtils, tables, sets, sugar
 import os, parsecsv, streams
 import lda
 
@@ -28,12 +28,32 @@ proc readPubMed(path: string): seq[seq[string]] =
     let text = x.row[3]
     result.add(tokenize(text))
 
+proc cleanup(docs: seq[seq[string]]): seq[seq[string]] =
+  var counts = newCountTable[string]()
+  for doc in docs:
+    for word in doc:
+      counts.inc(word)
+  var frequent = initSet[string]()
+  for word, count in counts:
+    if count >= 4:
+      frequent.incl(word)
+  sort(counts) # destructive
+  var i = 0
+  for word, _ in counts:
+    frequent.excl(word)
+    i += 1
+    if i > 30: break
+  return docs.map((s: seq[string]) => s.filterIt(frequent.contains(it)))
+
 proc main() =
   let
-    docWords = readPubMed("examples/pubmed.csv")
+    docWordsRaw = readPubMed("examples/pubmed.csv")
+    docWords = cleanup(docWordsRaw)
+  echo docWords
+  let
     vocab = makeVocab(docWords)
     docs = makeDocs(docWords, vocab)
-    ldaResult = lda(docs, vocabLen = vocab.len, K = 30, iterations = 1000)
+    ldaResult = lda(docs, vocabLen = vocab.len, K = 30, iterations = 10)
 
   for t in 0 ..< 3:
     echo "TOPIC ", t
