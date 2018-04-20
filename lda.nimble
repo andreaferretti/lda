@@ -8,7 +8,7 @@ skipDirs      = @["examples", "tests"]
 
 # Dependencies
 
-requires "nim >= 0.18.0", "alea >= 0.1.2"
+requires "nim >= 0.18.0"
 
 task test, "run tests":
   --path: "."
@@ -26,5 +26,4 @@ task pubmed, "run pubmed example":
   --path: "."
   --run
   --define: release
-  --gc: none
   setCommand "c", "examples/pubmed.nim"

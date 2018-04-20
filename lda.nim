@@ -62,13 +62,6 @@ proc len[A](s: NestedSeq[A], i: int): int =
   else:
     s.data.len - s.offsets[i]
 
-# proc makeDiscrete(v: Vector[float32]): Discrete[int] =
-#   new result.values
-#   result.values[] = newSeq[(int, float32)](v.len)
-#   let sum = v.sum
-#   for i in 0 ..< v.len:
-#     result.values[i] = (i, v[i] / sum)
-
 proc binarySearch(r: var Rand, probabilities: seq[float32]): int =
   let x = r.rand(max = probabilities[^1])
   var b = len(probabilities)
@@ -141,18 +134,26 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
 
   return LDAResult(wt: wt, dt: dt)
 
-# proc sample*(ldaResult: LDAResult, vocab: seq[string], doc = 0, count = 10): string =
-#   var
-#       rng = wrap(initMersenneTwister(urandom(16)))
-#       words = newSeq[string](count)
-#   let tDist = makeDiscrete(ldaResult.dt.row(doc))
-#   for i in 1 .. count:
-#     let
-#       t = rng.sample(tDist)
-#       wDist = makeDiscrete(ldaResult.wt.row(t))
-#       w = rng.sample(wDist)
-#     words[i - 1] = vocab[w]
-#   return words.join(" ")
+proc sample*(ldaResult: LDAResult, vocab: seq[string], doc = 0, count = 10): string =
+  let K = ldaResult.dt.N
+  var
+      rng = initRand(1234)
+      words = newSeq[string](count)
+      tDist = newSeq[float32](K)
+      wDist = newSeq[float32](vocab.len)
+      sum = 0'f32
+  for i in 0 ..< K:
+    sum += ldaResult.dt[doc, i]
+    tDist[i] = sum
+  for i in 1 .. count:
+    sum = 0
+    let t = rng.binarySearch(tDist)
+    for j in 0 ..< vocab.len:
+      sum += ldaResult.wt[t, j]
+      wDist[j] = sum
+    let w = rng.binarySearch(wDist)
+    words[i - 1] = vocab[w]
+  return words.join(" ")
 
 proc bestTopic*(ldaResult: LDAResult, doc: int): int =
   result = 0
