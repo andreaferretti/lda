@@ -83,18 +83,21 @@ iterator items[A](s: NestedSeq[A], i: int): A {.inline.} =
 #   for i in 0 ..< v.len:
 #     result.values[i] = (i, v[i] / sum)
 
-proc normalize(s: var seq[float32]) =
-  let sum = foldl(s, a + b)
-  for i in 0 ..< s.len:
-    s[i] /= sum
-
 proc sample(r: var Rand, probabilities: seq[float32]): int =
-  let x = r.rand(max = 1.0)
-  var sum = 0.0
+  let x = r.rand(max = probabilities[^1])
   for i, p in probabilities:
-    sum += p
-    if sum >= x:
+    if p >= x:
       return i
+
+proc binarySearch(r: var Rand, probabilities: seq[float32]): int =
+  let x = r.rand(max = probabilities[^1])
+  var b = len(probabilities)
+  while result < b:
+    var mid = (result + b) div 2
+    if probabilities[mid] < x:
+      result = mid + 1
+    else:
+      b = mid
 
 proc rowSum(m: Matrix, i: int): float32 {.inline.} =
   result = 0
@@ -148,11 +151,12 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
         # since we are going to recompute it
         dt.dec(d, t0)
         wt.dec(t0, wid)
+        var pSum = 0'f32
         for j in 0 ..< K:
-          probabilities[j] = (wt[j, wid] + eta) / (wt.rowSum(j) + L * eta) * (dt[d, j] + alpha)
-        normalize(probabilities)
+          pSum += (wt[j, wid] + eta) / (wt.rowSum(j) + L * eta) * (dt[d, j] + alpha)
+          probabilities[j] = pSum
         # Sample topic from distribution
-        let t1 = rng.sample(probabilities)
+        let t1 = rng.binarySearch(probabilities)
         # Update counts
         dt.inc(d, t1)
         wt.inc(t1, wid)
