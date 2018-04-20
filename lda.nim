@@ -99,17 +99,14 @@ proc binarySearch(r: var Rand, probabilities: seq[float32]): int =
     else:
       b = mid
 
-proc rowSum(m: Matrix, i: int): float32 {.inline.} =
-  result = 0
-  for j in 0 ..< m.N:
-    result += m[i, j]
-
 proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResult =
   var
     # word-topic matrix
     wt = zeros(K, vocabLen)
     # topic assignment list
     ta = like(docs)
+    # word-topic row sums
+    ws = newSeq[float32](K)
     # counts correspond to the number of words assigned to each topic
     # for each document
     dt = zeros(docs.len, K)
@@ -126,6 +123,7 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
         ti = ta[d, w]
         wi = docs[d, w]
       wt.inc(ti, wi)
+      ws[ti] += 1
 
     # count words in document d assigned to each topic t
     for t in 0 ..< K:
@@ -141,7 +139,10 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
 
   var probabilities = newSeq[float32](K)
 
+  echo "NOW"
   for _ in 1 .. iterations:
+    stdout.write(".")
+    stdout.flushFile
     for d in 0 ..< docs.len:
       for w in 0 ..< docs.len(d):
         let
@@ -151,15 +152,17 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
         # since we are going to recompute it
         dt.dec(d, t0)
         wt.dec(t0, wid)
+        ws[t0] -= 1
         var pSum = 0'f32
         for j in 0 ..< K:
-          pSum += (wt[j, wid] + eta) / (wt.rowSum(j) + L * eta) * (dt[d, j] + alpha)
+          pSum += (wt[j, wid] + eta) / (ws[j] + L * eta) * (dt[d, j] + alpha)
           probabilities[j] = pSum
         # Sample topic from distribution
         let t1 = rng.binarySearch(probabilities)
         # Update counts
         dt.inc(d, t1)
         wt.inc(t1, wid)
+        ws[t1] += 1
         ta[d, w] = t1
 
   return LDAResult(wt: wt, dt: dt)
