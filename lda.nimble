@@ -4,11 +4,16 @@ version       = "0.1.0"
 author        = "Andrea Ferretti"
 description   = "Latent Dirichlet allocation"
 license       = "Apache2"
-skipDirs      = @["examples"]
+skipDirs      = @["examples", "tests"]
 
 # Dependencies
 
-requires "nim >= 0.18.0", "neo >= 0.1.7", "alea >= 0.1.2"
+requires "nim >= 0.18.0", "alea >= 0.1.2"
+
+task test, "run tests":
+  --path: "."
+  --run
+  setCommand "c", "tests/test.nim"
 
 task toy, "run toy example":
   --path: "."

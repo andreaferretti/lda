@@ -22,12 +22,6 @@ template `[]`(m: Matrix, i, j: int): float32 =
 template `[]=`(m: var Matrix, i, j: int, val: float32) =
   m.data[j * m.M + i] = val
 
-template inc(m: var Matrix, i, j: int) =
-  m.data[j * m.M + i] += 1
-
-template dec(m: var Matrix, i, j: int) =
-  m.data[j * m.M + i] -= 1
-
 template `[]`[A](s: NestedSeq[A], i, j: int): A =
   s.data[s.offsets[i] + j]
 
@@ -37,8 +31,8 @@ template `[]=`[A](s: var NestedSeq[A], i, j: int, val: A) =
 proc newNestedSeq(outer, inner: int, A: typedesc): NestedSeq[A] =
   NestedSeq[A](offsets: newSeq[int](outer), data: newSeq[A](inner))
 
-proc like[A](s: NestedSeq[A]): NestedSeq[A] =
-  newNestedSeq(s.offsets.len, s.data.len, A)
+proc nestedSeqLike[A](s: NestedSeq[A]): NestedSeq[A] =
+  NestedSeq[A](offsets: s.offsets, data: newSeq[A](s.data.len))
 
 proc wordSet(docs: seq[seq[string]]): HashSet[string] =
   result.init()
@@ -71,11 +65,6 @@ proc len*[A](s: NestedSeq[A], i: int): int =
   else:
     s.data.len - s.offsets[i]
 
-iterator items[A](s: NestedSeq[A], i: int): A {.inline.} =
-  let max = if i + 1 < s.offsets.len:  s.offsets[i + 1] else: s.data.len
-  for j in s.offsets[i] ..< max:
-    yield s.data[j]
-
 # proc makeDiscrete(v: Vector[float32]): Discrete[int] =
 #   new result.values
 #   result.values[] = newSeq[(int, float32)](v.len)
@@ -83,17 +72,11 @@ iterator items[A](s: NestedSeq[A], i: int): A {.inline.} =
 #   for i in 0 ..< v.len:
 #     result.values[i] = (i, v[i] / sum)
 
-proc sample(r: var Rand, probabilities: seq[float32]): int =
-  let x = r.rand(max = probabilities[^1])
-  for i, p in probabilities:
-    if p >= x:
-      return i
-
 proc binarySearch(r: var Rand, probabilities: seq[float32]): int =
   let x = r.rand(max = probabilities[^1])
   var b = len(probabilities)
   while result < b:
-    var mid = (result + b) div 2
+    let mid = (result + b) div 2
     if probabilities[mid] < x:
       result = mid + 1
     else:
@@ -104,7 +87,7 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
     # word-topic matrix
     wt = zeros(K, vocabLen)
     # topic assignment list
-    ta = like(docs)
+    ta = nestedSeqLike(docs)
     # word-topic row sums
     ws = newSeq[float32](K)
     # counts correspond to the number of words assigned to each topic
@@ -120,16 +103,11 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
       # extract the topic index, word id and update the corresponding cell
       # in the word-topic count matrix
       let
-        ti = ta[d, w]
-        wi = docs[d, w]
-      wt.inc(ti, wi)
-      ws[ti] += 1
-
-    # count words in document d assigned to each topic t
-    for t in 0 ..< K:
-      for x in ta.items(d):
-        if x == t:
-          dt.inc(d, t)
+        t = ta[d, w]
+        wid = docs[d, w]
+      dt[d, t] += 1
+      wt[t, wid] += 1
+      ws[t] += 1
 
   # Gibbs sampling
   let
@@ -139,10 +117,9 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
 
   var probabilities = newSeq[float32](K)
 
-  echo "NOW"
-  for _ in 1 .. iterations:
-    stdout.write(".")
-    stdout.flushFile
+  for iter in 1 .. iterations:
+    if iter mod 10 == 0:
+      echo iter
     for d in 0 ..< docs.len:
       for w in 0 ..< docs.len(d):
         let
@@ -150,18 +127,18 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
           wid = docs[d, w]
         # Remove this particular topic association
         # since we are going to recompute it
-        dt.dec(d, t0)
-        wt.dec(t0, wid)
+        dt[d, t0] -= 1
+        wt[t0, wid] -= 1
         ws[t0] -= 1
         var pSum = 0'f32
-        for j in 0 ..< K:
-          pSum += (wt[j, wid] + eta) / (ws[j] + L * eta) * (dt[d, j] + alpha)
-          probabilities[j] = pSum
+        for t in 0 ..< K:
+          pSum += (wt[t, wid] + eta) / (ws[t] + L * eta) * (dt[d, t] + alpha)
+          probabilities[t] = pSum
         # Sample topic from distribution
         let t1 = rng.binarySearch(probabilities)
         # Update counts
-        dt.inc(d, t1)
-        wt.inc(t1, wid)
+        dt[d, t1] += 1
+        wt[t1, wid] += 1
         ws[t1] += 1
         ta[d, w] = t1
 
@@ -183,10 +160,10 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
 proc bestTopic*(ldaResult: LDAResult, doc: int): int =
   result = 0
   var max = -Inf
-  for j in 0 ..< ldaResult.dt.N:
-    if ldaResult.dt[doc, j] > max:
-      result = j
-      max = ldaResult.dt[doc, j]
+  for t in 0 ..< ldaResult.dt.N:
+    if ldaResult.dt[doc, t] > max:
+      result = t
+      max = ldaResult.dt[doc, t]
 
 proc bestWords*(ldaResult: LDAResult, vocab: seq[string], topic: int, count = 5): seq[tuple[word: string, score: float32]] =
   var wt = ldaResult.wt
@@ -194,9 +171,9 @@ proc bestWords*(ldaResult: LDAResult, vocab: seq[string], topic: int, count = 5)
   for i in 0 ..< count:
     var max = -Inf.float32
     var index = 0
-    for j in 0 ..< ldaResult.wt.N:
-      if wt[topic, j] > max:
-        index = j
-        max = wt[topic, j]
+    for t in 0 ..< ldaResult.wt.N:
+      if wt[topic, t] > max:
+        index = t
+        max = wt[topic, t]
     result[i] = (vocab[index], max)
     wt[topic, index] = 0

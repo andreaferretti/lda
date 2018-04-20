@@ -49,11 +49,9 @@ proc main() =
   let
     docWordsRaw = readPubMed("examples/pubmed.csv")
     docWords = cleanup(docWordsRaw)
-  echo docWords
-  let
     vocab = makeVocab(docWords)
     docs = makeDocs(docWords, vocab)
-    ldaResult = lda(docs, vocabLen = vocab.len, K = 30, iterations = 10)
+    ldaResult = lda(docs, vocabLen = vocab.len, K = 30, iterations = 1000)
 
   for t in 0 ..< 3:
     echo "TOPIC ", t
