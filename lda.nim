@@ -1,7 +1,4 @@
-import sets, sequtils, sugar, strutils
-import random
-import random/urandom, random/mersenne
-import alea
+import sets, sequtils, sugar, strutils, random
 
 type
   Matrix* = object
@@ -13,7 +10,7 @@ type
     offsets: seq[int]
     data: seq[A]
 
-proc zeros*(M, N: int): Matrix =
+proc zeros(M, N: int): Matrix =
   Matrix(M: M, N: N, data: newSeq[float32](M * N))
 
 template `[]`(m: Matrix, i, j: int): float32 =
@@ -59,7 +56,7 @@ proc makeDocs*(docWords: seq[seq[string]], vocab: seq[string]): NestedSeq[int] =
 
 proc len*[A](s: NestedSeq[A]): int = s.offsets.len
 
-proc len*[A](s: NestedSeq[A], i: int): int =
+proc len[A](s: NestedSeq[A], i: int): int =
   if i + 1 < s.offsets.len:
     s.offsets[i + 1] - s.offsets[i]
   else:
