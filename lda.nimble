@@ -15,6 +15,12 @@ task test, "run tests":
   --run
   setCommand "c", "tests/test.nim"
 
+task benchmark, "run benchmarks":
+  --path: "."
+  --run
+  --define: release
+  setCommand "c", "tests/benchmark.nim"
+
 task toy, "run toy example":
   --path: "."
   --run

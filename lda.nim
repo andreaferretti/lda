@@ -107,9 +107,7 @@ proc lda*(docs: NestedSeq[int], vocabLen: int, K: int, iterations: int): LDAResu
 
   var probabilities = newSeq[float32](K)
 
-  for iter in 1 .. iterations:
-    if iter mod 10 == 0:
-      echo iter
+  for _ in 1 .. iterations:
     for d in 0 ..< docs.len:
       for w in 0 ..< docs.len(d):
         let
