@@ -53,14 +53,8 @@ proc main() =
     docs = makeDocs(docWords, vocab)
     ldaResult = lda(docs, vocabLen = vocab.len, K = 30, iterations = 1000)
 
-  for t in 0 ..< 3:
+  for t in 0 ..< 30:
     echo "TOPIC ", t
     echo bestWords(ldaResult, vocab, t)
-
-  for d in 0 ..< docs.len:
-    echo "> ", docWords[d]
-    echo "topic: ", ldaResult.bestTopic(d)
-
-  echo sample(ldaResult, vocab, doc = 6)
 
 main()
