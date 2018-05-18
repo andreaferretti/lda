@@ -1,4 +1,5 @@
-# LDA
+LDA
+===
 
 This library implements a form of text clustering and topic modeling called
 [Latent Dirichlet Allocation](http://ethen8181.github.io/machine-learning/clustering_old/topic_model/LDA.html).
